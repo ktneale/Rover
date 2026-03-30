@@ -6,9 +6,7 @@ A WiFi-controlled robotics rover built using an ESP32-based chassis and a Raspbe
 
 ## 🔗 Full Build Write-Up
 
-👉 Read the full project breakdown on Medium:  
-https://medium.com/@kt.neale/engineering-mojo-reignited-part-1-from-zero-to-a-drivable-rover-9ea93a5d25c3
-
+👉 [Read the full rover build write-up on Medium](https://medium.com/@kt.neale/engineering-mojo-reignited-part-1-from-zero-to-a-drivable-rover-9ea93a5d25c3)
 ---
 
 ## ⚙️ Features
