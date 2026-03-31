@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Janus Dual Streaming (Hardcoded)</title>
+  <title>Rover Dashboard v0.1</title>
 
   <script src="js/adapter.min.js"></script>
   <script src="./janus.js"></script>
@@ -57,6 +57,20 @@
       padding:6px 10px;
       border-radius:999px;
       background:rgba(0,0,0,.2);
+    }
+
+    .pill.wrapValue {
+      display:inline-flex;
+      align-items:flex-start;
+      gap:6px;
+      max-width:100%;
+      white-space:normal;
+      border-radius:16px;
+    }
+
+    .pill.wrapValue .smallValue {
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
 
     main { padding:14px; }
@@ -143,6 +157,13 @@
       letter-spacing:.02em;
     }
 
+    .sectionTitle.withAction {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
     .muted {
       color:var(--muted);
       font-size:12px;
@@ -178,9 +199,10 @@
     }
     .dpadBtn:active,
     .dpadBtn.active {
-      background:#1a2333;
-      transform:none;
+      background:var(--btn);
+      transform:translateY(1px);
     }
+
     .dpadBtn.stop {
       background:#2a1c1c;
       border-color:#5a2a2a;
@@ -189,8 +211,8 @@
     }
     .dpadBtn.stop:active,
     .dpadBtn.stop.active {
-      background:#2a1c1c;
-      color:#ffd6d6;
+      background:var(--danger);
+      color:#fff;
     }
     .spacer { width:72px; height:72px; }
 
@@ -280,27 +302,27 @@
     .odometryPanel {
       display:grid;
       grid-template-columns:repeat(3, minmax(0, 1fr));
-      gap:12px;
+      gap:10px;
       margin-top:4px;
     }
 
     .telemetryCard {
       border:1px solid var(--border);
-      border-radius:14px;
-      padding:14px 12px;
+      border-radius:12px;
+      padding:11px 10px;
       background:rgba(0,0,0,.18);
     }
 
     .telemetryLabel {
       color:var(--muted);
-      font-size:12px;
-      margin-bottom:8px;
+      font-size:11px;
+      margin-bottom:6px;
       text-transform:uppercase;
       letter-spacing:.06em;
     }
 
     .telemetryValue {
-      font-size:24px;
+      font-size:20px;
       font-weight:800;
       line-height:1.1;
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
@@ -312,6 +334,11 @@
       gap:8px;
       flex-wrap:wrap;
       align-items:center;
+    }
+
+    .headerMeta {
+      margin-top:14px;
+      margin-bottom:10px;
     }
 
     .telemetryHint {
@@ -373,7 +400,7 @@
   <button id="stopBtn" class="btn secondary" disabled>Stop</button>
 
   <div class="status">
-    <span class="pill">Janus: <span id="conn">idle</span></span>
+    <span class="pill">WebRTC: <span id="conn">idle</span></span>
     <span class="pill">A: <span id="aState">idle</span></span>
     <span class="pill">B: <span id="bState">idle</span></span>
     <span class="pill">Teleop WS: <span id="dcState">idle</span></span>
@@ -433,16 +460,43 @@
       </div>
 
       <div class="smallValue telemetryRow">
-        <span class="pill">Last cmd: <span id="lastCmd" class="smallValue">none</span></span>
+        <span class="pill wrapValue">Last cmd: <span id="lastCmd" class="smallValue">none</span></span>
         <span class="pill">Keys: <span id="keyState" class="smallValue">none</span></span>
       </div>
     </div>
-
     <div class="panel">
-      <h2>Rover Status</h2>
+      <h2>Odometry</h2>
+      <div class="odometryPanel">
 
-      <div class="sectionTitle">Telemetry</div>
-      <div class="telemetryPanel">
+        <div class="telemetryCard">
+          <div class="telemetryLabel">Velocity</div>
+          <div id="odomV" class="telemetryValue">--</div>
+        </div>
+
+        <div class="telemetryCard">
+          <div class="telemetryLabel">Angular Velocity</div>
+          <div id="odomW" class="telemetryValue">--</div>
+        </div>
+
+        <div class="telemetryCard">
+          <div class="telemetryLabel">Sequence</div>
+          <div id="odomSeq" class="telemetryValue">--</div>
+        </div>
+        <div class="telemetryCard">
+          <div class="telemetryLabel">X</div>
+          <div id="odomX" class="telemetryValue">--</div>
+        </div>
+
+        <div class="telemetryCard">
+          <div class="telemetryLabel">Y</div>
+          <div id="odomY" class="telemetryValue">--</div>
+        </div>
+
+        <div class="telemetryCard">
+          <div class="telemetryLabel">Theta</div>
+          <div id="odomTh" class="telemetryValue">--</div>
+        </div>
+
         <div class="telemetryCard">
           <div class="telemetryLabel">Yaw</div>
           <div id="telemetryYaw" class="telemetryValue">--</div>
@@ -458,6 +512,29 @@
           <div id="telemetryRoll" class="telemetryValue">--</div>
         </div>
 
+        <div class="telemetryCard">
+          <div class="telemetryLabel">dL</div>
+          <div id="odomDL" class="telemetryValue">--</div>
+        </div>
+
+        <div class="telemetryCard">
+          <div class="telemetryLabel">dR</div>
+          <div id="odomDR" class="telemetryValue">--</div>
+        </div>
+
+        <div class="telemetryCard">
+          <div class="telemetryLabel">Ticks L / R</div>
+          <div id="odomTicks" class="telemetryValue">--</div>
+        </div>
+      </div>
+
+      <div class="sectionTitle withAction telemetryMeta headerMeta">
+        <button id="btnOdomReset" class="btn secondary" type="button">Reset Odometry</button>
+        <span class="pill">Odom update: <span id="odomTs">never</span></span>
+      </div>
+      <br>
+      <div class="sectionTitle">Telemetry</div>
+      <div class="telemetryPanel">
         <div class="telemetryCard">
           <div class="telemetryLabel">Voltage</div>
           <div id="telemetryVoltage" class="telemetryValue">--</div>
@@ -477,63 +554,6 @@
       <div class="telemetryMeta smallValue">
         <span class="pill">Last update: <span id="telemetryTs">never</span></span>
         <span class="pill">Source: <span id="telemetrySrc">--</span></span>
-      </div>
-
-      <div class="sectionTitle">Odometry</div>
-
-      <div class="actionsRow">
-        <button id="btnOdomReset" class="btn secondary" type="button">Reset Odometry</button>
-      </div>
-
-      <div class="odometryPanel">
-        <div class="telemetryCard">
-          <div class="telemetryLabel">X</div>
-          <div id="odomX" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">Y</div>
-          <div id="odomY" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">Theta</div>
-          <div id="odomTh" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">Velocity</div>
-          <div id="odomV" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">Omega</div>
-          <div id="odomW" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">Sequence</div>
-          <div id="odomSeq" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">dL</div>
-          <div id="odomDL" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">dR</div>
-          <div id="odomDR" class="telemetryValue">--</div>
-        </div>
-
-        <div class="telemetryCard">
-          <div class="telemetryLabel">Ticks L / R</div>
-          <div id="odomTicks" class="telemetryValue">--</div>
-        </div>
-      </div>
-
-      <div class="telemetryMeta smallValue">
-        <span class="pill">Odom update: <span id="odomTs">never</span></span>
       </div>
 
       <div class="muted telemetryHint">
@@ -1144,11 +1164,20 @@
   // ========= Keyboard support =========
   const activeKeys = new Set();
 
+  function normalizeControlKey(key) {
+    if (key === "ArrowUp" || key === "w" || key === "W") return "ArrowUp";
+    if (key === "ArrowDown" || key === "s" || key === "S") return "ArrowDown";
+    if (key === "ArrowLeft" || key === "a" || key === "A") return "ArrowLeft";
+    if (key === "ArrowRight" || key === "d" || key === "D") return "ArrowRight";
+    return null;
+  }
+
   function keyToDir(key) {
-    if (key === "ArrowUp") return "up";
-    if (key === "ArrowDown") return "down";
-    if (key === "ArrowLeft") return "left";
-    if (key === "ArrowRight") return "right";
+    const normalizedKey = normalizeControlKey(key);
+    if (normalizedKey === "ArrowUp") return "up";
+    if (normalizedKey === "ArrowDown") return "down";
+    if (normalizedKey === "ArrowLeft") return "left";
+    if (normalizedKey === "ArrowRight") return "right";
     return null;
   }
 
@@ -1184,21 +1213,23 @@
   }
 
   window.addEventListener("keydown", (ev) => {
+    const normalizedKey = normalizeControlKey(ev.key);
     const dir = keyToDir(ev.key);
     if (!dir) return;
 
     ev.preventDefault();
-    activeKeys.add(ev.key);
+    activeKeys.add(normalizedKey);
     updateKeyState();
     refreshKeyboardCommand();
   });
 
   window.addEventListener("keyup", (ev) => {
+    const normalizedKey = normalizeControlKey(ev.key);
     const dir = keyToDir(ev.key);
     if (!dir) return;
 
     ev.preventDefault();
-    activeKeys.delete(ev.key);
+    activeKeys.delete(normalizedKey);
     updateKeyState();
     refreshKeyboardCommand();
   });

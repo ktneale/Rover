@@ -7,6 +7,7 @@ Simple rover controller / arbiter.
 Inputs (UDP, bound to CONTROLLER_PORT):
 - teleop_cmd
 - teleop_stop
+- odom_reset
 - vision_track
 - lidar
 - set_mode
@@ -31,9 +32,11 @@ import socket
 import time
 from typing import Any, Optional
 
-from rover.common.rover_ports import EVENT_PORT, CONTROLLER_PORT, DRIVE_PORT
+from rover.common.rover_ports import EVENT_PORT, CONTROLLER_PORT, DRIVE_PORT, ODOM_PORT
 from rover.common.udp import udp_send_json, udp_recv_json_nonblocking
 from rover.common.heartbeat import HeartbeatPublisher
+
+DEFAULT_ODOM_RESET_PORT = ODOM_PORT
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -114,6 +117,9 @@ class Controller:
 
     def publish_rover_cmd(self, obj: dict[str, Any]) -> None:
         udp_send_json(self.args.cmd_host, self.args.cmd_port, obj)
+
+    def publish_odom_reset(self, obj: dict[str, Any]) -> None:
+        udp_send_json(self.args.odom_host, self.args.odom_port, obj)
 
     def publish_cmd_vel(self, v: float, w: float, source: str) -> None:
         v = clamp(v, -1.0, 1.0)
@@ -225,6 +231,25 @@ class Controller:
             self.last_auto_time = now
             self.last_auto_source = source
 
+    def handle_odom_reset(self, msg: dict[str, Any]) -> None:
+        out = {
+            "type": "odom_reset",
+            "source": str(msg.get("source", "controller")).strip() or "controller",
+            "ts": msg.get("ts", time.time()),
+        }
+
+        print(
+            f"[CTRL->ODOM] odom_reset dest={self.args.odom_host}:{self.args.odom_port}",
+            flush=True,
+        )
+        self.publish_odom_reset(out)
+        self.publish_event({
+            "type": "odom_reset_forwarded",
+            "ts": time.time(),
+            "src": "controller",
+            "odom_dest": f"{self.args.odom_host}:{self.args.odom_port}",
+        })
+
     def handle_vision_track(self, msg: dict[str, Any]) -> None:
         self.target_seen = bool(msg.get("target", False))
         self.target_err_x = float(msg.get("err_x", 0.0))
@@ -274,6 +299,10 @@ class Controller:
 
         if msg_type == "teleop_stop":
             self.handle_teleop_stop(msg)
+            return
+
+        if msg_type == "odom_reset":
+            self.handle_odom_reset(msg)
             return
 
         if msg_type == "vision_track":
@@ -656,6 +685,7 @@ class Controller:
             "bind": f"{self.args.bind_host}:{self.args.bind_port}",
             "cmd_dest": f"{self.args.cmd_host}:{self.args.cmd_port}",
             "event_dest": f"{self.args.event_host}:{self.args.event_port}",
+            "odom_dest": f"{self.args.odom_host}:{self.args.odom_port}",
             "initial_mode": self.mode,
         })
 
@@ -690,6 +720,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap.add_argument("--event-host", default="127.0.0.1", help="UDP destination host for controller events")
     ap.add_argument("--event-port", type=int, default=EVENT_PORT, help="UDP destination port for controller events")
+
+    ap.add_argument("--odom-host", default="127.0.0.1", help="UDP destination host for odometry reset messages")
+    ap.add_argument("--odom-port", type=int, default=DEFAULT_ODOM_RESET_PORT, help="UDP destination port for odometry reset messages")
 
     ap.add_argument("--initial-mode", default="manual", choices=["manual", "track"])
     ap.add_argument("--loop-sleep-s", type=float, default=0.05, help="Main loop sleep interval")
