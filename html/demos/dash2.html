@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Janus Dual Streaming (Hardcoded)</title>
+
+  <script src="js/adapter.min.js"></script>
+  <script src="./janus.js"></script>
+
+  <style>
+    :root {
+      --bg:#0b0f14; --panel:#121826; --border:#223049; --text:#e6edf3; --muted:#9fb0c0;
+      --btn:#1f6feb; --btn2:#30363d; --danger:#b42318;
+    }
+    body {
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    header {
+      position:sticky;
+      top:0;
+      z-index:10;
+      padding:12px 14px;
+      border-bottom:1px solid var(--border);
+      background:rgba(18,24,38,.95);
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    h1 { margin:0; font-size:15px; font-weight:700; letter-spacing:.2px; }
+    .btn {
+      border:1px solid var(--border);
+      background:var(--btn);
+      color:#fff;
+      padding:8px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:700;
+    }
+    .btn.secondary { background:var(--btn2); }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+
+    .status {
+      margin-left:auto;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .pill {
+      border:1px solid var(--border);
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(0,0,0,.2);
+    }
+
+    main { padding:14px; }
+
+    .grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width: 900px){
+      .grid{ grid-template-columns:1fr; }
+    }
+
+    .tile {
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      position:relative;
+      min-height:240px;
+      cursor:pointer;
+    }
+    .tileHdr {
+      position:absolute;
+      left:0;
+      right:0;
+      top:0;
+      padding:10px 10px 24px 10px;
+      background:linear-gradient(to bottom, rgba(0,0,0,.75), rgba(0,0,0,0));
+      z-index:2;
+      pointer-events:none;
+    }
+    .tileHdr .title { font-size:13px; font-weight:800; }
+    .tileHdr .sub {
+      margin-top:4px;
+      font-size:12px;
+      color:rgba(255,255,255,.75);
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+    }
+
+    video {
+      width:100%;
+      height:100%;
+      display:block;
+      background:#000;
+      object-fit:contain;
+    }
+
+    .tile.focused {
+      position:fixed;
+      inset:12px;
+      z-index:9999;
+      border-radius:18px;
+      box-shadow:0 12px 50px rgba(0,0,0,.6);
+    }
+
+    .controlsWrap {
+      margin-top:14px;
+      display:grid;
+      grid-template-columns:320px 1fr;
+      gap:12px;
+    }
+    @media (max-width: 900px){
+      .controlsWrap { grid-template-columns:1fr; }
+    }
+
+    .panel {
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px;
+    }
+
+    .panel h2 {
+      margin:0 0 10px 0;
+      font-size:14px;
+    }
+
+    .muted {
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    .dpad {
+      display:grid;
+      grid-template-columns:72px 72px 72px;
+      grid-template-rows:72px 72px 72px;
+      gap:8px;
+      justify-content:center;
+      align-items:center;
+      margin-top:10px;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action:none;
+    }
+
+    .dpadBtn {
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#1a2333;
+      color:var(--text);
+      font-size:24px;
+      font-weight:800;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:72px;
+      height:72px;
+      touch-action:none;
+    }
+    .dpadBtn:active,
+    .dpadBtn.active {
+      background:var(--btn);
+      transform:translateY(1px);
+    }
+
+    .dpadBtn.stop {
+      background:#2a1c1c;
+      border-color:#5a2a2a;
+      color:#ffd6d6;
+      font-size:16px;
+    }
+    .dpadBtn.stop:active,
+    .dpadBtn.stop.active {
+      background:var(--danger);
+      color:#fff;
+    }
+
+    .spacer { width:72px; height:72px; }
+
+    .telemetryRow {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+
+    .smallValue {
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Janus Dual Streaming</h1>
+  <button id="startBtn" class="btn">Start</button>
+  <button id="stopBtn" class="btn secondary" disabled>Stop</button>
+
+  <div class="status">
+    <span class="pill">Janus: <span id="conn">idle</span></span>
+    <span class="pill">A: <span id="aState">idle</span></span>
+    <span class="pill">B: <span id="bState">idle</span></span>
+    <span class="pill">Control DC: <span id="dcState">idle</span></span>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <div id="tileA" class="tile" title="Click to toggle fullscreen">
+      <div class="tileHdr">
+        <div class="title">Stream A</div>
+        <div class="sub" id="aSub">mountpoint: ?</div>
+      </div>
+      <video id="vidA" autoplay playsinline muted></video>
+    </div>
+
+    <div id="tileB" class="tile" title="Click to toggle fullscreen">
+      <div class="tileHdr">
+        <div class="title">Stream B</div>
+        <div class="sub" id="bSub">mountpoint: ?</div>
+      </div>
+      <video id="vidB" autoplay playsinline muted></video>
+    </div>
+  </div>
+
+  <div class="controlsWrap">
+    <div class="panel">
+      <h2>Teleop</h2>
+      <div class="muted">
+        Hold a button or use keyboard arrows. Release sends STOP.<br/>
+        Control is sent over <span class="smallValue">Stream A</span>'s data channel.
+      </div>
+
+      <div class="dpad">
+        <div class="spacer"></div>
+        <button id="btnUp" class="dpadBtn" type="button">▲</button>
+        <div class="spacer"></div>
+
+        <button id="btnLeft" class="dpadBtn" type="button">◀</button>
+        <button id="btnStop" class="dpadBtn stop" type="button">STOP</button>
+        <button id="btnRight" class="dpadBtn" type="button">▶</button>
+
+        <div class="spacer"></div>
+        <button id="btnDown" class="dpadBtn" type="button">▼</button>
+        <div class="spacer"></div>
+      </div>
+
+      <div class="telemetryRow">
+        <span class="pill">Last cmd: <span id="lastCmd" class="smallValue">none</span></span>
+        <span class="pill">Keys: <span id="keyState" class="smallValue">none</span></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Notes</h2>
+      <div class="muted">
+        Suggested command mapping:
+        <div style="margin-top:8px" class="smallValue">
+          up    = {"type":"teleop_cmd","v":0.5,"w":0}<br/>
+          down  = {"type":"teleop_cmd","v":-0.35,"w":0}<br/>
+          left  = {"type":"teleop_cmd","v":0,"w":0.9}<br/>
+          right = {"type":"teleop_cmd","v":0,"w":-0.9}<br/>
+          stop  = {"type":"teleop_cmd","v":0,"w":0}
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  // ========= CONFIG =========
+  const JANUS_WS_URL = "ws://10.42.0.1:8188";
+  const STREAM_ID_A  = 10;
+  const STREAM_ID_B  = 11;
+
+  // Teleop command magnitudes
+  const TELEOP = {
+    forwardV:  0.50,
+    reverseV: -0.35,
+    leftW:     0.90,
+    rightW:   -0.90
+  };
+
+  // ========= UI =========
+  const connEl = document.getElementById("conn");
+  const aStateEl = document.getElementById("aState");
+  const bStateEl = document.getElementById("bState");
+  const dcStateEl = document.getElementById("dcState");
+
+  const aSub = document.getElementById("aSub");
+  const bSub = document.getElementById("bSub");
+  aSub.textContent = `mountpoint: ${STREAM_ID_A}`;
+  bSub.textContent = `mountpoint: ${STREAM_ID_B}`;
+
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn  = document.getElementById("stopBtn");
+
+  const tileA = document.getElementById("tileA");
+  const tileB = document.getElementById("tileB");
+  const vidA  = document.getElementById("vidA");
+  const vidB  = document.getElementById("vidB");
+
+  const btnUp = document.getElementById("btnUp");
+  const btnDown = document.getElementById("btnDown");
+  const btnLeft = document.getElementById("btnLeft");
+  const btnRight = document.getElementById("btnRight");
+  const btnStop = document.getElementById("btnStop");
+  const lastCmdEl = document.getElementById("lastCmd");
+  const keyStateEl = document.getElementById("keyState");
+
+  function setConn(s){ connEl.textContent = s; }
+  function setA(s){ aStateEl.textContent = s; }
+  function setB(s){ bStateEl.textContent = s; }
+  function setDC(s){ dcStateEl.textContent = s; }
+
+  const alertAudio = new Audio("/ed209trim.wav");
+  let audioUnlocked = false;
+
+  document.addEventListener("click", async () => {
+    if (audioUnlocked) return;
+    try {
+      await alertAudio.play();
+      alertAudio.pause();
+      alertAudio.currentTime = 0;
+      audioUnlocked = true;
+      console.log("Audio unlocked");
+    } catch (e) {
+      console.warn("Audio unlock failed:", e);
+    }
+  }, { once: true });
+
+  function handleDataMessage(data) {
+    let msg = data;
+    try { msg = JSON.parse(data); } catch (e) {}
+
+    if (msg?.type === "alert" && msg?.value === "obstacle_close") {
+      alertAudio.currentTime = 0;
+      alertAudio.play().catch(err => {
+        console.warn("Playback blocked:", err);
+      });
+    }
+  }
+
+  // Fullscreen toggle
+  function toggleFullscreen(tile) {
+    if (document.fullscreenEnabled) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(()=>{});
+      } else {
+        tile.requestFullscreen().catch(() => tile.classList.toggle("focused"));
+      }
+      return;
+    }
+    const other = (tile === tileA) ? tileB : tileA;
+    other.classList.remove("focused");
+    tile.classList.toggle("focused");
+  }
+
+  tileA.addEventListener("click", () => toggleFullscreen(tileA));
+  tileB.addEventListener("click", () => toggleFullscreen(tileB));
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement) {
+      tileA.classList.remove("focused");
+      tileB.classList.remove("focused");
+    }
+  });
+
+  // ========= JANUS =========
+  let janus = null;
+
+  const streams = {
+    A: { id: STREAM_ID_A, stateFn: setA, video: vidA, handle: null, media: null, dataOpen: false },
+    B: { id: STREAM_ID_B, stateFn: setB, video: vidB, handle: null, media: null, dataOpen: false },
+  };
+
+  function controlStream() {
+    return streams.A; // send teleop on A
+  }
+
+  function updateDCState() {
+    const s = controlStream();
+    setDC(s?.dataOpen ? "open" : "closed");
+  }
+
+  function detachStream(key) {
+    const s = streams[key];
+    try { s.handle && s.handle.hangup(); } catch(e) {}
+    try { s.handle && s.handle.detach(); } catch(e) {}
+    s.handle = null;
+    s.dataOpen = false;
+
+    try { s.video.srcObject = null; } catch(e) {}
+    s.media = null;
+
+    s.stateFn("idle");
+    updateDCState();
+  }
+
+  function destroyAll() {
+    sendStop();
+    detachStream("A");
+    detachStream("B");
+
+    if (janus) {
+      try { janus.destroy(); } catch(e) {}
+      janus = null;
+    }
+
+    setConn("idle");
+    setDC("idle");
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  }
+
+  function attachStreaming(key) {
+    const s = streams[key];
+    s.stateFn("attaching…");
+
+    janus.attach({
+      plugin: "janus.plugin.streaming",
+      opaqueId: `dual-${key}-${Janus.randomString(8)}`,
+
+      success: (pluginHandle) => {
+        s.handle = pluginHandle;
+        s.stateFn("watching…");
+        s.handle.send({ message: { request: "watch", id: s.id } });
+      },
+
+      error: (err) => {
+        console.error(`[${key}] attach error:`, err);
+        s.stateFn("error");
+      },
+
+      onmessage: (msg, jsep) => {
+        if (msg?.error) {
+          console.error(`[${key}] plugin error:`, msg.error);
+          s.stateFn("error");
+          return;
+        }
+        if (msg?.result?.status) s.stateFn(msg.result.status);
+
+        if (jsep) {
+          if (!s.handle) {
+            console.warn(`[${key}] got jsep but handle not set yet`);
+            return;
+          }
+          s.handle.createAnswer({
+            jsep,
+            media: { audioSend: false, videoSend: false, data: true },
+            success: (ourJsep) => {
+              s.handle.send({ message: { request: "start" }, jsep: ourJsep });
+              s.stateFn("starting…");
+            },
+            error: (err) => {
+              console.error(`[${key}] createAnswer error:`, err);
+              s.stateFn("error");
+            }
+          });
+        }
+      },
+
+      onremotetrack: (track, mid, on) => {
+        if (!on) return;
+
+        if (!s.media) s.media = new MediaStream();
+
+        const existing = s.media.getTracks().some(t => t.id === track.id);
+        if (!existing) s.media.addTrack(track);
+
+        s.video.srcObject = s.media;
+        s.video.play().catch(()=>{});
+        s.stateFn("playing");
+      },
+
+      ondataopen: (label, protocol) => {
+        console.log(`[${key}] data channel open`, label, protocol);
+        s.dataOpen = true;
+        updateDCState();
+      },
+
+      ondata: (data, label) => {
+        console.log(`[${key}] data message`, data);
+
+        try {
+          const msg = JSON.parse(data);
+          console.log(`[${key}] parsed data`, msg);
+
+          handleDataMessage(data);
+
+          if (typeof s.onData === "function") {
+            s.onData(msg);
+          }
+        } catch (e) {
+          if (typeof s.onData === "function") {
+            s.onData(data);
+          }
+        }
+      },
+
+      oncleanup: () => {
+        s.stateFn("stopped");
+        s.dataOpen = false;
+        updateDCState();
+        try { s.video.srcObject = null; } catch(e) {}
+        s.media = null;
+      }
+    });
+  }
+
+  function start() {
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    setConn("initializing…");
+    setA("idle");
+    setB("idle");
+    setDC("closed");
+
+    Janus.init({
+      debug: "all",
+      callback: () => {
+        setConn("connecting…");
+        janus = new Janus({
+          server: JANUS_WS_URL,
+
+          success: () => {
+            setConn("connected");
+            attachStreaming("A");
+            attachStreaming("B");
+          },
+
+          error: (err) => {
+            console.error("Janus error:", err);
+            setConn("error");
+            destroyAll();
+          },
+
+          destroyed: () => {
+            setConn("destroyed");
+          }
+        });
+      }
+    });
+  }
+
+  // ========= TELEOP =========
+
+  function teleopPayload(v, w) {
+    return {
+      type: "teleop_cmd",
+      v,
+      w
+    };
+  }
+
+  function sendDataObject(obj) {
+    const s = controlStream();
+    if (!s || !s.handle || !s.dataOpen) {
+      console.warn("Control data channel not open");
+      return false;
+    }
+
+    try {
+      const text = JSON.stringify(obj);
+      console.warn("data sent: ", text)
+      s.handle.data({
+        text,
+        error: (reason) => console.error("data send error:", reason),
+        success: () => {}
+      });
+      lastCmdEl.textContent = text;
+      return true;
+    } catch (e) {
+      console.error("Failed to send data object:", e);
+      return false;
+    }
+  }
+
+  function sendTeleopCmd(v, w) {
+    return sendDataObject(teleopPayload(v, w));
+  }
+
+  function sendStop() {
+    return sendTeleopCmd(0, 0);
+  }
+
+  function commandForDirection(dir) {
+    switch (dir) {
+      case "up":    return { v: TELEOP.forwardV,  w: 0 };
+      case "down":  return { v: TELEOP.reverseV,  w: 0 };
+      case "left":  return { v: 0,                w: TELEOP.leftW };
+      case "right": return { v: 0,                w: TELEOP.rightW };
+      default:      return { v: 0,                w: 0 };
+    }
+  }
+
+  function setButtonActive(dir, active) {
+    const map = {
+      up: btnUp,
+      down: btnDown,
+      left: btnLeft,
+      right: btnRight,
+      stop: btnStop
+    };
+    const el = map[dir];
+    if (!el) return;
+    el.classList.toggle("active", active);
+  }
+
+  function pressDirection(dir) {
+    const cmd = commandForDirection(dir);
+    setButtonActive(dir, true);
+    sendTeleopCmd(cmd.v, cmd.w);
+  }
+
+  function releaseDirection(dir) {
+    setButtonActive(dir, false);
+    sendStop();
+  }
+
+  function bindHoldButton(el, dir) {
+    const start = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      pressDirection(dir);
+    };
+
+    const end = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      releaseDirection(dir);
+    };
+
+    el.addEventListener("pointerdown", start);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    el.addEventListener("pointerleave", end);
+    el.addEventListener("lostpointercapture", end);
+
+    el.addEventListener("contextmenu", (ev) => ev.preventDefault());
+  }
+
+  bindHoldButton(btnUp, "up");
+  bindHoldButton(btnDown, "down");
+  bindHoldButton(btnLeft, "left");
+  bindHoldButton(btnRight, "right");
+
+  btnStop.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setButtonActive("stop", true);
+    sendStop();
+    setTimeout(() => setButtonActive("stop", false), 120);
+  });
+
+  // Keyboard support
+  const activeKeys = new Set();
+
+  function keyToDir(key) {
+    if (key === "ArrowUp") return "up";
+    if (key === "ArrowDown") return "down";
+    if (key === "ArrowLeft") return "left";
+    if (key === "ArrowRight") return "right";
+    return null;
+  }
+
+  function updateKeyState() {
+    const vals = Array.from(activeKeys.values());
+    keyStateEl.textContent = vals.length ? vals.join(",") : "none";
+  }
+
+  // Priority: only one direction at a time for now
+  function currentKeyboardDirection() {
+    if (activeKeys.has("ArrowUp")) return "up";
+    if (activeKeys.has("ArrowDown")) return "down";
+    if (activeKeys.has("ArrowLeft")) return "left";
+    if (activeKeys.has("ArrowRight")) return "right";
+    return null;
+  }
+
+  let activeKeyboardDir = null;
+
+  function refreshKeyboardCommand() {
+    const dir = currentKeyboardDirection();
+
+    if (dir === activeKeyboardDir) return;
+
+    if (activeKeyboardDir) {
+      setButtonActive(activeKeyboardDir, false);
+    }
+
+    activeKeyboardDir = dir;
+
+    if (!dir) {
+      sendStop();
+      return;
+    }
+
+    const cmd = commandForDirection(dir);
+    setButtonActive(dir, true);
+    sendTeleopCmd(cmd.v, cmd.w);
+  }
+
+  window.addEventListener("keydown", (ev) => {
+    const dir = keyToDir(ev.key);
+    if (!dir) return;
+
+    ev.preventDefault();
+    activeKeys.add(ev.key);
+    updateKeyState();
+    refreshKeyboardCommand();
+  });
+
+  window.addEventListener("keyup", (ev) => {
+    const dir = keyToDir(ev.key);
+    if (!dir) return;
+
+    ev.preventDefault();
+    activeKeys.delete(ev.key);
+    updateKeyState();
+    refreshKeyboardCommand();
+  });
+
+  window.addEventListener("blur", () => {
+    activeKeys.clear();
+    updateKeyState();
+    if (activeKeyboardDir) {
+      setButtonActive(activeKeyboardDir, false);
+      activeKeyboardDir = null;
+    }
+    sendStop();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      activeKeys.clear();
+      updateKeyState();
+      if (activeKeyboardDir) {
+        setButtonActive(activeKeyboardDir, false);
+        activeKeyboardDir = null;
+      }
+      sendStop();
+    }
+  });
+
+  startBtn.addEventListener("click", start);
+  stopBtn.addEventListener("click", destroyAll);
+})();
+</script>
+</body>
+</html>
